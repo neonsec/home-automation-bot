@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Home Hub</title>
+<style>
+  :root { --bg:#f6f7f9; --card:#fff; --ink:#1b1f24; --muted:#6b7280; --on:#16a34a; --off:#9ca3af; --accent:#2563eb; }
+  @media (prefers-color-scheme: dark) { :root { --bg:#0f1115; --card:#181b21; --ink:#e7e9ee; --muted:#9aa1ad; } }
+  body { margin:0; font-family: system-ui, sans-serif; background:var(--bg); color:var(--ink); }
+  header { padding:16px; font-weight:700; font-size:20px; }
+  #grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(220px,1fr)); gap:12px; padding:0 16px 16px; }
+  .card { background:var(--card); border-radius:12px; padding:14px; box-shadow:0 1px 3px rgba(0,0,0,.08); }
+  .name { font-weight:600; } .room { color:var(--muted); font-size:12px; text-transform:uppercase; letter-spacing:.05em; }
+  .kv { display:flex; justify-content:space-between; font-size:14px; margin-top:4px; }
+  .dot { display:inline-block; width:8px; height:8px; border-radius:50%; margin-right:6px; }
+  button { margin-top:10px; width:100%; padding:8px; border:0; border-radius:8px; background:var(--accent); color:#fff; font-weight:600; cursor:pointer; }
+  #log { padding:0 16px 24px; color:var(--muted); font-size:13px; }
+</style>
+</head>
+<body>
+<header>🏠 Home Hub</header>
+<div id="grid"></div>
+<div id="log"></div>
+<script>
+const grid = document.getElementById('grid'), log = document.getElementById('log');
+async function toggle(id, on) {
+  const [room, name] = id.split('/');
+  await fetch(`/api/devices/${room}/${name}/set`, {method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({command:{on:!on}})});
+}
+function render({devices, fires}) {
+  grid.innerHTML = '';
+  for (const [id, d] of Object.entries(devices).sort()) {
+    const [room, name] = id.split('/');
+    const card = document.createElement('div'); card.className = 'card';
+    card.innerHTML = `<div class="room"><span class="dot" style="background:${d.online?'var(--on)':'var(--off)'}"></span>${room.replace('_',' ')}</div>
+      <div class="name">${name.replace('_',' ')}</div>` +
+      Object.entries(d.state).map(([k,v]) => `<div class="kv"><span>${k}</span><b>${v}</b></div>`).join('');
+    if ('on' in d.state) {
+      const b = document.createElement('button');
+      b.textContent = d.state.on ? 'Turn off' : 'Turn on';
+      b.onclick = () => toggle(id, d.state.on);
+      card.appendChild(b);
+    }
+    grid.appendChild(card);
+  }
+  log.innerHTML = (fires||[]).slice().reverse().map(f =>
+    `⚡ ${new Date(f.ts*1000).toLocaleTimeString()} — rule "${f.rule}" → ${f.device} ${JSON.stringify(f.command)}`).join('<br>');
+}
+new EventSource('/api/stream').onmessage = e => render(JSON.parse(e.data));
+</script>
+</body>
+</html>
